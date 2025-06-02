@@ -30,6 +30,12 @@ Nesse contexto, o DeepSeek surge como uma alternativa promissora: por ser um mod
 
 ### Datasets
 
+#### MLCQ: Industry-relevant code smell data set
+O principal dataset utilizado na análise será o MLCQ. Ele foi escolhido entre várias opções por ser um dos mais confiáveis e bem organizados quando se trata de identificar e classificar code smells. Suas anotações seguem critérios claros e consistentes, o que dá mais segurança para a análise. Como o conjunto de dados é bastante grande, usaremos apenas uma parte dele nas nossas avaliações, o que vai permitir fazer inspeções manuais com mais cuidado e garantir que os resultados obtidos sejam relevantes e bem analisados.
+
+#### Exemplos de códigos com code smell
+Além do dataset anterior, iremos selecionar alguns repositórios de código públicos com alta cobertura de teste e iremos modificar alguns trechos para inserir manualmente code smells conhecidos. A ideia é, então, verificar se o modelo de linguagem é capaz de identificar o code smell e comparar o quão distante está a sugestão de modificação feita pelo modelo com relação a implementação base, antes da inserção manual do code smell.
+
 ### Exemplos preliminares de prompts
 
 Para avaliar o desempenho do modelo na tarefa de detecção e classificação de code smells, serão utilizados prompts projetados para simular instruções realistas que um desenvolvedor ou ferramenta de apoio poderia fornecer. Esses prompts buscam avaliar a capacidade do modelo de identificar que há um problema no código e sua competência em reconhecer qual tipo específico de code smell está presente e, por fim, sugerir possíveis melhorias. Um exemplo de prompt que será utilizado no experimento seria:
@@ -40,7 +46,26 @@ Outros tipos de prompts serão utilizados ao longo da pesquisa. No entanto, a id
 
 ### Avaliação
 
-#### Avaliação quantitativa
+#### Avaliação Quantitativa
 
-#### Avaliação qualitativa
+A avaliação quantitativa do modelo DeepSeek será realizada com o objetivo de analisar sua performance em dois aspectos principais: a detecção e a correção de code smells. Essas avaliações serão conduzidas separadamente em cenários distintos.
+
+No primeiro cenário, verificaremos a capacidade do modelo em identificar corretamente a presença ou ausência de code smells em trechos de código, bem como classificá-los de acordo com seu tipo. Para isso, será utilizado um conjunto de exemplos previamente rotulados, permitindo a comparação direta entre as saídas do modelo e os rótulos de referência. 
+
+As métricas adotadas para essa avaliação serão acurácia, precisão, recall e F1-score.
+
+O segundo cenário avaliaremos a capacidade do modelo de localizar com precisão o trecho de código afetado pelo code smell e, adicionalmente, sugerir uma correção apropriada. Essa etapa será realizada com base em códigos-fonte originalmente bem estruturados, nos quais serão introduzidos code smells artificialmente, de forma manual
+
+As sugestões geradas pelo modelo serão comparadas ao código original e ao código modificado, por fim o trecho sugerido será incluído no código original a fim verificar se a alteração recomendada de fato mantém o comportamento do código.
+
+Nesse contexto, será avaliado se os code smells indicados pelo modelo estão de fato presentes no código, se os code smells existentes foram corretamente corrigidos e, por fim, se o código resultante está correto, ou seja, mantendo o comportamento original do sistema.
+
+Devido a complexidade de avaliação deste segundo cenário, iremos utilizar um número de exemplos reduzidos, já que a avaliação será feita pelos integrantes do grupo.
+
+#### Avaliação Qualitativa
+
+A avaliação qualitativa será conduzida com o intuito de compreender a utilidade prática, a clareza e a confiabilidade das sugestões fornecidas pelo modelo.
+
+Essa análise permitirá obter uma visão mais rica e interpretativa sobre a performance do modelo, complementando os dados objetivos da avaliação quantitativa e ajudando a identificar oportunidades de aprimoramento tanto na detecção quanto na correção de code smells. Para tanto, iremos inspecionar minuciosamente os resultados obtidos e avaliar se, de modo geral, o DeepSeek realiza um trabalho satisfatório ao identificar e corrigir code smells.
+
 
