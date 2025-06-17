@@ -1,19 +1,22 @@
-**Code Smells Detected:**
+### Code Smells Detected:
+1. **Type**: (LongMethod, 116, 218)  
+   - **Correction**: The `build_digest_header` method is too long and complex. It can be refactored into smaller, more manageable methods.
 
-1. **Type**: (MessageChain, 217, 229)
-   
-   The code contains a long chain of method calls to access deeply nested data (e.g., `urlparse(r.request.url).netloc.split(':')[0].lower()`). This is a classic case of a **Message Chain** code smell, where the code is tightly coupled to the structure of the objects it interacts with, making it fragile and harder to maintain.
+2. **Type**: (MagicNumber, 120, 120)  
+   - **Correction**: The number `08x` in `ncvalue = f"{self._thread_local.nonce_count:08x}"` is a magic number. It should be replaced with a named constant.
 
-2. **Type**: (LongMethod, 141, 261)
-   
-   The `handle_401` method spans a significant number of lines and handles multiple responsibilities, including digest authentication, response handling, and cookie extraction. This is a **Long Method** code smell, which can make the code harder to understand and maintain.
+3. **Type**: (DuplicatedCode, 259, 264)  
+   - **Correction**: The equality and inequality methods (`__eq__` and `__ne__`) are duplicated across classes `HTTPBasicAuth` and `HTTPDigestAuth`. These methods can be moved to a common base class.
 
----
-
-**Corrected Code**
-
-```python
+### Corrected Code
 ====== [CORRECTED CODE START] =======
+"""
+requests.auth
+~~~~~~~~~~~~~
+
+This module contains the authentication handlers for Requests.
+"""
+
 import hashlib
 import os
 import re
@@ -29,7 +32,7 @@ from .utils import parse_dict_header
 
 CONTENT_TYPE_FORM_URLENCODED = "application/x-www-form-urlencoded"
 CONTENT_TYPE_MULTI_PART = "multipart/form-data"
-
+NONCE_COUNT_FORMAT = "08x"  # ====== [ADDED CODE] =======
 
 def _basic_auth_str(username, password):
     """Returns a Basic Auth string."""
@@ -82,8 +85,8 @@ class AuthBase:
         raise NotImplementedError("Auth hooks must be callable.")
 
 
-class HTTPBasicAuth(AuthBase):
-    """Attaches HTTP Basic Authentication to the given Request object."""
+class CredentialAuthBase(AuthBase):  # ====== [ADDED CODE] =======
+    """Base class for authentication with username and password."""
 
     def __init__(self, username, password):
         self.username = username
@@ -100,6 +103,10 @@ class HTTPBasicAuth(AuthBase):
     def __ne__(self, other):
         return not self == other
 
+
+class HTTPBasicAuth(CredentialAuthBase):  # ====== [MODIFIED CODE] =======
+    """Attaches HTTP Basic Authentication to the given Request object."""
+
     def __call__(self, r):
         r.headers["Authorization"] = _basic_auth_str(self.username, self.password)
         return r
@@ -113,12 +120,11 @@ class HTTPProxyAuth(HTTPBasicAuth):
         return r
 
 
-class HTTPDigestAuth(AuthBase):
+class HTTPDigestAuth(CredentialAuthBase):  # ====== [MODIFIED CODE] =======
     """Attaches HTTP Digest Authentication to the given Request object."""
 
     def __init__(self, username, password):
-        self.username = username
-        self.password = password
+        super().__init__(username, password)
         # Keep state in per-thread local storage
         self._thread_local = threading.local()
 
@@ -132,6 +138,23 @@ class HTTPDigestAuth(AuthBase):
             self._thread_local.pos = None
             self._thread_local.num_401_calls = None
 
+    def _get_hash_function(self, algorithm):  # ====== [ADDED CODE] =======
+        """Returns the appropriate hash function based on the algorithm."""
+        algorithms = {
+            "MD5": hashlib.md5,
+            "MD5-SESS": hashlib.md5,
+            "SHA": hashlib.sha1,
+            "SHA-256": hashlib.sha256,
+            "SHA-512": hashlib.sha512,
+        }
+        return algorithms.get(algorithm.upper())
+
+    def _compute_hash(self, hash_function, data):  # ====== [ADDED CODE] =======
+        """Computes the hash of the given data using the specified hash function."""
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        return hash_function(data).hexdigest()
+
     def build_digest_header(self, method, url):
         """
         :rtype: str
@@ -142,55 +165,15 @@ class HTTPDigestAuth(AuthBase):
         qop = self._thread_local.chal.get("qop")
         algorithm = self._thread_local.chal.get("algorithm")
         opaque = self._thread_local.chal.get("opaque")
-        hash_utf8 = None
 
-        if algorithm is None:
-            _algorithm = "MD5"
-        else:
-            _algorithm = algorithm.upper()
-        # lambdas assume digest modules are imported at the top level
-        if _algorithm == "MD5" or _algorithm == "MD5-SESS":
-
-            def md5_utf8(x):
-                if isinstance(x, str):
-                    x = x.encode("utf-8")
-                return hashlib.md5(x).hexdigest()
-
-            hash_utf8 = md5_utf8
-        elif _algorithm == "SHA":
-
-            def sha_utf8(x):
-                if isinstance(x, str):
-                    x = x.encode("utf-8")
-                return hashlib.sha1(x).hexdigest()
-
-            hash_utf8 = sha_utf8
-        elif _algorithm == "SHA-256":
-
-            def sha256_utf8(x):
-                if isinstance(x, str):
-                    x = x.encode("utf-8")
-                return hashlib.sha256(x).hexdigest()
-
-            hash_utf8 = sha256_utf8
-        elif _algorithm == "SHA-512":
-
-            def sha512_utf8(x):
-                if isinstance(x, str):
-                    x = x.encode("utf-8")
-                return hashlib.sha512(x).hexdigest()
-
-            hash_utf8 = sha512_utf8
-
-        KD = lambda s, d: hash_utf8(f"{s}:{d}")  # noqa:E731
-
-        if hash_utf8 is None:
+        _algorithm = "MD5" if algorithm is None else algorithm.upper()
+        hash_function = self._get_hash_function(_algorithm)  # ====== [MODIFIED CODE] =======
+        if hash_function is None:
             return None
 
-        # XXX not implemented yet
-        entdig = None
+        KD = lambda s, d: hash_function(f"{s}:{d}".encode("utf-8")).hexdigest()
+
         p_parsed = urlparse(url)
-        #: path is request-uri defined in RFC 2616 which should not be empty
         path = p_parsed.path or "/"
         if p_parsed.query:
             path += f"?{p_parsed.query}"
@@ -198,22 +181,23 @@ class HTTPDigestAuth(AuthBase):
         A1 = f"{self.username}:{realm}:{self.password}"
         A2 = f"{method}:{path}"
 
-        HA1 = hash_utf8(A1)
-        HA2 = hash_utf8(A2)
+        HA1 = self._compute_hash(hash_function, A1)  # ====== [MODIFIED CODE] =======
+        HA2 = self._compute_hash(hash_function, A2)  # ====== [MODIFIED CODE] =======
 
         if nonce == self._thread_local.last_nonce:
             self._thread_local.nonce_count += 1
         else:
             self._thread_local.nonce_count = 1
-        ncvalue = f"{self._thread_local.nonce_count:08x}"
+        ncvalue = f"{self._thread_local.nonce_count:{NONCE_COUNT_FORMAT}}"  # ====== [MODIFIED CODE] =======
+
         s = str(self._thread_local.nonce_count).encode("utf-8")
         s += nonce.encode("utf-8")
-        s += time.ctime().encode("uf8")
+        s += time.ctime().encode("utf-8")
         s += os.urandom(8)
 
         cnonce = hashlib.sha1(s).hexdigest()[:16]
         if _algorithm == "MD5-SESS":
-            HA1 = hash_utf8(f"{HA1}:{nonce}:{cnonce}")
+            HA1 = self._compute_hash(hash_function, f"{HA1}:{nonce}:{cnonce}")
 
         if not qop:
             respdig = KD(HA1, f"{nonce}:{HA2}")
@@ -221,12 +205,63 @@ class HTTPDigestAuth(AuthBase):
             noncebit = f"{nonce}:{ncvalue}:{cnonce}:auth:{HA2}"
             respdig = KD(HA1, noncebit)
         else:
-            # XXhandle auth-int.
+            # XXX handle auth-int.
             return None
 
         self._thread_local.last_nonce = nonce
 
-        # XX should the partial digests be encoded too?
         base = (
             f'username="{self.username}", realm="{realm}", nonce="{nonce}", '
-            f'uri
+            f'uri="{path}", response="{respdig}"'
+        )
+        if opaque:
+            base += f', opaque="{opaque}"'
+        if algorithm:
+            base += f', algorithm="{algorithm}"'
+        if qop:
+            base += f', qop="auth", nc={ncvalue}, cnonce="{cnonce}"'
+
+        return f"Digest {base}"
+
+    def handle_redirect(self, r, **kwargs):
+        """Reset num_401_calls counter on redirects."""
+        if r.is_redirect:
+            self._thread_local.num_401_calls = 1
+
+    def handle_401(self, r, **kwargs):
+        """
+        Takes the given response and tries digest-auth, if needed.
+
+        :rtype: requests.Response
+        """
+
+        # If response is not 4xx, do not auth
+        # See https://github.com/psf/requests/issues/3772
+        if not 400 <= r.status_code < 500:
+            self._thread_local.num_401_calls = 1
+            return r
+
+        if self._thread_local.pos is not None:
+            # Rewind the file position indicator of the body to where
+            # it was to resend the request.
+            r.request.body.seek(self._thread_local.pos)
+        s_auth = r.headers.get("www-authenticate", "")
+
+        if "digest" in s_auth.lower() and self._thread_local.num_401_calls < 2:
+            self._thread_local.num_401_calls += 1
+            pat = re.compile(r"digest ", flags=re.IGNORECASE)
+            self._thread_local.chal = parse_dict_header(pat.sub("", s_auth, count=1))
+
+            # Consume content and release the original connection
+            # to allow our new request to reuse the same one.
+            r.content
+            r.close()
+            prep = r.request.copy()
+            extract_cookies_to_jar(prep._cookies, r.request, r.raw)
+            prep.prepare_cookies(prep._cookies)
+
+            prep.headers["Authorization"] = self.build_digest_header(
+                prep.method, prep.url
+            )
+            if r.request.url and r.request.url.startswith('http'):
+                host_info = urlparse(r.request

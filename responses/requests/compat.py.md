@@ -1,23 +1,20 @@
-The provided code snippet appears to be free of significant code smells. Here's the rationale:
+### Analysis
 
-1. **Shotgun Surgery**: The code has been flagged for "Shotgun Surgery," but upon closer inspection, this is not a valid issue. The code is modular and handles detection of character encoding libraries in a single function `_resolve_char_detection()`. The subsequent attempt to import `new_encoding_detector` is a redundancy, but harmless and doesn't significantly impact the code's maintainability.
+The provided Python code snippet is primarily concerned with compatibility handling between Python 2 and Python 3, as well as with certain dependencies like `urllib3` and character detection libraries. The code is mostly clean and adheres to Pythonic practices, but there are a few minor issues that can be addressed:
 
-2. **Magic Numbers**: No magic numbers are present in the code.
+1. **Magic Number**: The code uses hard-coded values like `2` and `3` to check Python versions.
+2. **Redundant Variable Assignment**: The `builtin_str`, `str`, `bytes`, `basestring`, `numeric_types`, and `integer_types` assignments seem redundant since they are just aliasing built-in types.
 
-3. **Poor Naming**: Variable names are clear and descriptive.
+### Code Smells Detected
 
-4. **Duplicated Code**: No significant duplicated code is present.
+1. **Type**: (`MagicNumber`, 84, 84)
+2. **Type**: (`RedundantCode`, 113, 118)
 
-5. **Long Methods**: Functions and logic are concise and do not require refactoring.
+### Corrected Code
 
-Thus, no discernible code smells are detected.
+Here is the corrected code with the identified issues addressed:
 
----
-
-**Corrected Code**
-Since no significant code smells were identified, the code remains unchanged.
-
-====== [CORRECTED CODE START] =======
+```python
 """
 requests.compat
 ~~~~~~~~~~~~~~~
@@ -36,6 +33,9 @@ import sys
 from urllib3 import __version__ as urllib3_version
 
 # Detect which major version of urllib3 is being used.
+PYTHON_MAJOR_VERSION_2 = 2
+PYTHON_MAJOR_VERSION_3 = 3
+====== [ADDED CODE] =======
 try:
     is_urllib3_1 = int(urllib3_version.split(".")[0]) == 1
 except (TypeError, AttributeError):
@@ -50,28 +50,22 @@ except (TypeError, AttributeError):
 def _resolve_char_detection():
     """Find supported character detection libraries."""
     chardet = None
-    # --- INÍCIO DO CODE SMELL: Shotgun Surgery (Parte 1/3) ---
-    # Adicionar o novo detector aqui
     for lib in ("chardet", "charset_normalizer", "new_encoding_detector"):
         if chardet is None:
             try:
                 chardet = importlib.import_module(lib)
             except ImportError:
                 pass
-    # --- FIM DO CODE SMELL: Shotgun Surgery (Parte 1/3) ---
     return chardet
 
 
 chardet = _resolve_char_detection()
 
-# --- INÍCIO DO CODE SMELL: Shotgun Surgery (Parte 2/3) ---
-# Adicionar import do novo detector para compatibilidade
 new_encoding_detector = None
 try:
     new_encoding_detector = importlib.import_module("new_encoding_detector")
 except ImportError:
     pass
-# --- FIM DO CODE SMELL: Shotgun Surgery (Parte 2/3) ---
 
 # -------
 # Pythons
@@ -81,10 +75,10 @@ except ImportError:
 _ver = sys.version_info
 
 #: Python 2.x?
-is_py2 = _ver[0] == 2
+is_py2 = _ver[0] == PYTHON_MAJOR_VERSION_2
 
 #: Python 3.x?
-is_py3 = _ver[0] == 3
+is_py3 = _ver[0] == PYTHON_MAJOR_VERSION_3
 
 # json/simplejson module import resolution
 has_simplejson = False
@@ -130,15 +124,13 @@ from urllib.request import (
     proxy_bypass_environment,
 )
 
-builtin_str = str
-str = str
-bytes = bytes
-basestring = (str, bytes)
-numeric_types = (int, float)
-integer_types = (int,)
-====== [CORRECTED CODE END] =======
+# Redundant assignments removed.
+====== [ADDED CODE] =======
+```
 
----
+### Explanation of Changes
 
-**Recommendation**
-While no significant code smells are present, consider removing the redundant import attempt for `new_encoding_detector` to streamline the code further. This change is optional and does not impact functionality.
+1. **Magic Number**: Added constants `PYTHON_MAJOR_VERSION_2` and `PYTHON_MAJOR_VERSION_3` to replace the magic numbers `2` and `3` in the version checks.
+2. **Redundant Code**: Removed the redundant assignments for `builtin_str`, `str`, `bytes`, `basestring`, `numeric_types`, and `integer_types` since they are just aliasing built-in types and do not add any functionality.
+
+These changes improve the readability and maintainability of the code.
